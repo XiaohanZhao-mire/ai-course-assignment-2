@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build deployment image
         run: docker build -t gentext-app .
-      - name: Test with the real spaCy model
+      - name: Test the real spaCy model and trained CNN
         run: |
           docker run --rm -v "$PWD/tests:/code/tests:ro" gentext-app uv run --frozen pytest -q
       - name: Start deployment and query it over HTTP

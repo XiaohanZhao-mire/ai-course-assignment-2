@@ -1,13 +1,14 @@
-"""Module 3 API, extended with a word-embedding endpoint for Assignment 1."""
+"""Module 3 API with Assignment 1 embeddings and Assignment 2 image classification."""
 
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, UploadFile, File
 from pydantic import BaseModel, Field, StringConstraints
 
 from app.bigram_model import BigramModel
 from app.embedding_model import EmbeddingModel
+from app.image_classifier import ImageClassifier, MAX_UPLOAD_BYTES
 
 corpus = [
     "The Count of Monte Cristo is a novel written by Alexandre Dumas. "
@@ -22,10 +23,11 @@ corpus = [
 async def lifespan(app: FastAPI):
     app.state.bigram_model = BigramModel(corpus)
     app.state.embedding_model = EmbeddingModel()
+    app.state.image_classifier = ImageClassifier()
     yield
 
 
-app = FastAPI(title="Assignment 1: Word Embeddings API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Assignments 1 and 2: Embeddings and Image Classification", version="0.2.0", lifespan=lifespan)
 
 Word = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
@@ -44,6 +46,25 @@ class EmbeddingResponse(BaseModel):
     model: str
     dimensions: int
     embedding: list[float]
+
+
+class ClassificationResponse(BaseModel):
+    class_id: int
+    class_name: str
+    confidence: float
+    probabilities: dict[str, float]
+
+
+@app.post("/classify", response_model=ClassificationResponse)
+def classify_image(request: Request, file: Annotated[UploadFile, File(description="PNG or JPEG image, at most 5 MiB")]):
+    """Return one of the ten CIFAR-10 classes using the trained assignment CNN."""
+    content = file.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Image upload exceeds 5 MiB.")
+    try:
+        return request.app.state.image_classifier.predict(content)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/")

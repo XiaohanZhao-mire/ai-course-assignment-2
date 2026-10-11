@@ -2,6 +2,7 @@
 import json
 import math
 import sys
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -35,3 +36,26 @@ with urlopen(Request(base + "/generate", data=body, headers={"Content-Type": "ap
 print(json.dumps({"status": "PASS", "dimensions": apple["dimensions"],
                   "apple_first_5": apple["embedding"][:5],
                   "checks": "real embeddings, distinct words, input errors, original generation"}, indent=2))
+
+# Multipart upload using the standard library, so this also runs in CI.
+root = Path(__file__).resolve().parent.parent
+boundary = "Assignment2ImageBoundary"
+examples = json.loads((root / "examples/labels.json").read_text())
+results = []
+for example in examples:
+    image = (root / "examples" / example["file"]).read_bytes()
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"example.png\"\r\n"
+            "Content-Type: image/png\r\n\r\n").encode() + image + f"\r\n--{boundary}--\r\n".encode()
+    request = Request(base + "/classify", data=body,
+                      headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with urlopen(request, timeout=30) as response:
+        result = json.load(response)
+    assert 0 <= result["class_id"] < 10
+    assert result["class_name"] in result["probabilities"]
+    assert 0 <= result["confidence"] <= 1
+    assert len(result["probabilities"]) == 10
+    assert abs(sum(result["probabilities"].values()) - 1.0) < 1e-6
+    results.append({"file": example["file"], "true_class": example["true_class_name"],
+                    "predicted_class": result["class_name"], "confidence": result["confidence"]})
+assert len({r["predicted_class"] for r in results}) > 1
+print(json.dumps({"status": "PASS", "image_classification_examples": results}, indent=2))
