@@ -2,7 +2,8 @@
 
 This extends the Assignment 1 FastAPI application with a trained CIFAR-10 image
 classifier at `POST /classify`. The original `/`, `/generate`, and `/embedding`
-endpoints remain available. The repository name is retained from Assignment 1.
+endpoints remain available. Assignment 2 is submitted in its own repository:
+https://github.com/XiaohanZhao-mire/ai-course-assignment-2
 
 ## Run with Docker
 
